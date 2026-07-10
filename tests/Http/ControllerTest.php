@@ -243,4 +243,67 @@ final class ControllerTest extends TestCase
             json_decode((string) $resp->getBody(), true)
         );
     }
+
+    public function testMetadataEndpointReturnsP2Document(): void
+    {
+        $resp = $this->controller->metadata(
+            new ServerRequest(),
+            ['vendor' => 'acme', 'package' => 'billing']
+        );
+        self::assertSame(200, $resp->getStatusCode());
+        self::assertSame('application/json', $resp->getHeaderLine('Content-Type'));
+        $decoded = json_decode((string) $resp->getBody(), true);
+
+        // p2 shape: packages -> name -> LIST of version objects.
+        self::assertArrayHasKey('acme/billing', $decoded['packages']);
+        $versions = $decoded['packages']['acme/billing'];
+        self::assertSame('1.2.0', $versions[0]['version']);
+        self::assertSame(
+            'https://example.com/dist/acme/billing/1.2.0.zip',
+            $versions[0]['dist']['url']
+        );
+    }
+
+    public function testMetadataEndpointReturns404ForUnknownPackage(): void
+    {
+        $resp = $this->controller->metadata(
+            new ServerRequest(),
+            ['vendor' => 'no', 'package' => 'such']
+        );
+        self::assertSame(404, $resp->getStatusCode());
+    }
+
+    public function testMetadataEndpointReturns404ForDevSuffix(): void
+    {
+        // Composer 2 also probes name~dev.json; it must 404 (no dev versions).
+        $resp = $this->controller->metadata(
+            new ServerRequest(),
+            ['vendor' => 'acme', 'package' => 'billing~dev']
+        );
+        self::assertSame(404, $resp->getStatusCode());
+    }
+
+    public function testMetadataEndpointReturns503OnStorageListingFailure(): void
+    {
+        $fs = new \RepAhead\Tests\Support\ThrowingFilesystem();
+        $fs->failListContents();
+        $controller = new Controller(
+            fs: $fs,
+            catalog: new Catalog(),
+            zipMetadata: new ZipMetadata(),
+            packagesJson: new PackagesJson(new NullLogger()),
+            cache: new Cache($this->cacheDir, 0),
+            baseUrl: 'https://example.com',
+            logger: new NullLogger(),
+        );
+        $resp = $controller->metadata(
+            new ServerRequest(),
+            ['vendor' => 'acme', 'package' => 'billing']
+        );
+        self::assertSame(503, $resp->getStatusCode());
+        self::assertSame(
+            ['error' => 'storage_unavailable'],
+            json_decode((string) $resp->getBody(), true)
+        );
+    }
 }

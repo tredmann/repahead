@@ -11,6 +11,7 @@ use Psr\Log\LoggerInterface;
 final readonly class PackagesJsonResult
 {
     public function __construct(
+        public string $p2Json,
         public string $json,
         public int $packagesCount,
         public int $versionsCount,
@@ -85,11 +86,27 @@ final readonly class PackagesJson
         }
         unset($versions);
 
-        // Force {} not [] when no packages.
-        $payload = ['packages' => $packages === [] ? new \stdClass() : $packages];
-        $json = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+        // p2 manifest: one entry per Package, version objects newest-first.
+        $p2 = [];
+        foreach ($packages as $name => $versions) {
+            // Newest version first — version_compare is semver-aware (native, no dependency).
+            uksort($versions, static fn (string $a, string $b): int => version_compare($b, $a));
+            $p2[$name] = array_values($versions);
+        }
+
+        // Root Index: inline v1 `packages` plus the v2 metadata-url discovery keys.
+        $root = [
+            'packages' => $packages === [] ? new \stdClass() : $packages,
+            'metadata-url' => $baseUrl . '/p2/%package%.json',
+            'available-packages' => array_keys($packages),
+        ];
+
+        $flags = JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT;
+        $json = json_encode($root, $flags);
+        $p2Json = json_encode($p2 === [] ? new \stdClass() : $p2, $flags);
 
         return new PackagesJsonResult(
+            p2Json: (string) $p2Json,
             json: (string) $json,
             packagesCount: count($packages),
             versionsCount: $versionCount,
