@@ -108,6 +108,38 @@ final class EndToEndTest extends TestCase
         self::assertSame(404, $resp->getStatusCode());
     }
 
+    public function testP2Route200(): void
+    {
+        $router = App::router($this->config, $this->fs);
+        $resp = $router->dispatch($this->authedRequest('GET', '/p2/acme/billing.json'));
+        self::assertSame(200, $resp->getStatusCode());
+        $decoded = json_decode((string) $resp->getBody(), true);
+        self::assertSame('1.2.0', $decoded['packages']['acme/billing'][0]['version']);
+    }
+
+    public function testP2RouteRequiresAuth(): void
+    {
+        $router = App::router($this->config, $this->fs);
+        $resp = $router->dispatch(new ServerRequest([], [], '/p2/acme/billing.json'));
+        self::assertSame(401, $resp->getStatusCode());
+    }
+
+    public function testP2RouteDevSuffix404(): void
+    {
+        $router = App::router($this->config, $this->fs);
+        $resp = $router->dispatch($this->authedRequest('GET', '/p2/acme/billing~dev.json'));
+        self::assertSame(404, $resp->getStatusCode());
+    }
+
+    public function testRootAdvertisesMetadataUrl(): void
+    {
+        $router = App::router($this->config, $this->fs);
+        $resp = $router->dispatch($this->authedRequest('GET', '/packages.json'));
+        $decoded = json_decode((string) $resp->getBody(), true);
+        self::assertSame('https://example.com/p2/%package%.json', $decoded['metadata-url']);
+        self::assertSame(['acme/billing'], $decoded['available-packages']);
+    }
+
     public function testSafeJsonStrategySanitisesUncaughtException(): void
     {
         $router = new \League\Route\Router();

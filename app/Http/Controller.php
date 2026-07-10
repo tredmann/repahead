@@ -56,6 +56,30 @@ final readonly class Controller
         }
     }
 
+    /** @param array{vendor: string, package: string} $args */
+    public function metadata(ServerRequestInterface $request, array $args): ResponseInterface
+    {
+        try {
+            $p2Json = $this->ensure(Cache::P2);
+        } catch (FilesystemException $e) {
+            $this->logger->error('Storage listing failed', ['error' => $e->getMessage()]);
+            return $this->errorResponse(503, 'storage_unavailable');
+        }
+
+        $name = "{$args['vendor']}/{$args['package']}";
+        /** @var array<string, list<array<string, mixed>>> $manifest */
+        $manifest = json_decode($p2Json, true) ?: [];
+        if (!isset($manifest[$name])) {
+            return (new Response())->withStatus(404);
+        }
+
+        $doc = ['packages' => [$name => $manifest[$name]]];
+        return $this->jsonResponse(
+            200,
+            (string) json_encode($doc, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT)
+        );
+    }
+
     public function home(ServerRequestInterface $request): ResponseInterface
     {
         try {

@@ -80,6 +80,13 @@ final class App
         $router->get('/packages.json', fn (ServerRequestInterface $req): ResponseInterface => $controller->packages($req))
             ->middleware($auth);
         $router->get(
+            '/p2/{vendor}/{package}.json',
+            function (ServerRequestInterface $req, array $args) use ($controller): ResponseInterface {
+                /** @var array{vendor: string, package: string} $args */
+                return $controller->metadata($req, $args);
+            },
+        )->middleware($auth);
+        $router->get(
             '/dist/{vendor}/{package}/{version}.zip',
             function (ServerRequestInterface $req, array $args) use ($controller): ResponseInterface {
                 /** @var array{vendor: string, package: string, version: string} $args */
