@@ -25,62 +25,71 @@ final class CacheTest extends TestCase
         @rmdir($this->dir);
     }
 
+    /** @return array<string,string> */
+    private function bundle(string $packages = '{"x":1}', string $p2 = '{}'): array
+    {
+        return [Cache::PACKAGES => $packages, Cache::P2 => $p2];
+    }
+
     public function testReadIfFreshReturnsNullWhenCacheMissing(): void
     {
         $cache = new Cache($this->dir, ttlSeconds: 30);
-        self::assertNull($cache->readIfFresh());
+        self::assertNull($cache->readIfFresh(Cache::PACKAGES));
     }
 
     public function testReadIfFreshReturnsNullWhenTtlIsZero(): void
     {
         $cache = new Cache($this->dir, ttlSeconds: 0);
-        $cache->rebuild('hash1', fn (): string => '{"x":1}');
-        self::assertNull($cache->readIfFresh());
+        $cache->rebuild('hash1', fn (): array => $this->bundle());
+        self::assertNull($cache->readIfFresh(Cache::PACKAGES));
     }
 
     public function testReadIfFreshReturnsContentWithinTtl(): void
     {
         $cache = new Cache($this->dir, ttlSeconds: 30);
-        $cache->rebuild('hash1', fn (): string => '{"x":1}');
-        self::assertSame('{"x":1}', $cache->readIfFresh());
+        $cache->rebuild('hash1', fn (): array => $this->bundle('{"x":1}', '{"p":2}'));
+        self::assertSame('{"x":1}', $cache->readIfFresh(Cache::PACKAGES));
+        self::assertSame('{"p":2}', $cache->readIfFresh(Cache::P2));
     }
 
     public function testReadIfFreshReturnsNullWhenTtlExpired(): void
     {
         $cache = new Cache($this->dir, ttlSeconds: 1);
-        $cache->rebuild('hash1', fn (): string => '{"x":1}');
+        $cache->rebuild('hash1', fn (): array => $this->bundle());
         touch($this->dir . '/manifest.hash', time() - 10);
         clearstatcache();
-        self::assertNull($cache->readIfFresh());
+        self::assertNull($cache->readIfFresh(Cache::PACKAGES));
     }
 
     public function testReadIfHashMatchesReturnsContentOnMatch(): void
     {
         $cache = new Cache($this->dir, ttlSeconds: 0);
-        $cache->rebuild('hash1', fn (): string => '{"x":1}');
-        self::assertSame('{"x":1}', $cache->readIfHashMatches('hash1'));
+        $cache->rebuild('hash1', fn (): array => $this->bundle('{"x":1}', '{"p":2}'));
+        self::assertSame('{"x":1}', $cache->readIfHashMatches(Cache::PACKAGES, 'hash1'));
+        self::assertSame('{"p":2}', $cache->readIfHashMatches(Cache::P2, 'hash1'));
     }
 
     public function testReadIfHashMatchesReturnsNullOnMismatch(): void
     {
         $cache = new Cache($this->dir, ttlSeconds: 0);
-        $cache->rebuild('hash1', fn (): string => '{"x":1}');
-        self::assertNull($cache->readIfHashMatches('different-hash'));
+        $cache->rebuild('hash1', fn (): array => $this->bundle());
+        self::assertNull($cache->readIfHashMatches(Cache::PACKAGES, 'different-hash'));
     }
 
-    public function testRebuildWritesAtomically(): void
+    public function testRebuildWritesAllArtifactsAtomically(): void
     {
         $cache = new Cache($this->dir, ttlSeconds: 0);
-        $result = $cache->rebuild('hashA', fn (): string => '{"a":1}');
-        self::assertSame('{"a":1}', $result);
+        $result = $cache->rebuild('hashA', fn (): array => $this->bundle('{"a":1}', '{"b":2}'));
+        self::assertSame(['packages.json' => '{"a":1}', 'p2.json' => '{"b":2}'], $result);
         self::assertSame('{"a":1}', file_get_contents($this->dir . '/packages.json'));
+        self::assertSame('{"b":2}', file_get_contents($this->dir . '/p2.json'));
         self::assertSame('hashA', file_get_contents($this->dir . '/manifest.hash'));
     }
 
     public function testInvalidateDropsManifestHash(): void
     {
         $cache = new Cache($this->dir, ttlSeconds: 30);
-        $cache->rebuild('hashA', fn (): string => '{"a":1}');
+        $cache->rebuild('hashA', fn (): array => $this->bundle());
         self::assertFileExists($this->dir . '/manifest.hash');
         $cache->invalidate();
         self::assertFileDoesNotExist($this->dir . '/manifest.hash');
@@ -88,10 +97,9 @@ final class CacheTest extends TestCase
 
     public function testRebuildIsLockedSerially(): void
     {
-        // Two sequential rebuilds with different hashes - the second should win.
         $cache = new Cache($this->dir, ttlSeconds: 0);
-        $cache->rebuild('hashA', fn (): string => '{"a":1}');
-        $cache->rebuild('hashB', fn (): string => '{"b":2}');
+        $cache->rebuild('hashA', fn (): array => $this->bundle('{"a":1}'));
+        $cache->rebuild('hashB', fn (): array => $this->bundle('{"b":2}'));
         self::assertSame('{"b":2}', file_get_contents($this->dir . '/packages.json'));
         self::assertSame('hashB', file_get_contents($this->dir . '/manifest.hash'));
     }
