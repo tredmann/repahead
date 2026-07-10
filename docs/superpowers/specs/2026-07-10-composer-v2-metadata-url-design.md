@@ -81,9 +81,10 @@ by version). Versions are ordered newest-first by the existing sort, reversed.
 ### Build output (`PackagesJson::build`)
 
 `build()` currently returns a `PackagesJsonResult` carrying the root JSON and
-counts. Extend it to also return a map `packageName → p2 JSON string`. The
-existing counts (packages, versions, skipped) are unchanged and continue to
-drive the `POST /rebuild` summary.
+counts. Extend it with a `p2Json` string — the encoded p2 manifest
+(`{ "vendor/package": [ …version objects… ] }`). The existing counts
+(packages, versions, skipped) are unchanged and continue to drive the
+`POST /rebuild` summary.
 
 The name/version validation and Rejected-Release handling are unchanged: a
 Release that is rejected never reaches either the inline `packages` map or its
@@ -92,17 +93,25 @@ p2 document.
 ### Cache (`app/Cache.php`)
 
 Today the Cache persists a single `packages.json` (plus `manifest.hash` and
-`.rebuild.lock`). Extend it so a Rebuild atomically writes, under one Listing
-Fingerprint:
+`.rebuild.lock`). Generalize it to persist a set of **named artifacts** under
+one Listing Fingerprint. A Rebuild atomically writes, then records the
+Fingerprint last:
 
 - `packages.json` (the root Index)
-- `p2/vendor/package.json` — one file per Package
+- `p2.json` — a single **p2 manifest**: a JSON object mapping each package
+  name to its list of version objects (`{ "vendor/package": [ {…}, … ] }`).
 
-All files are written, then the Fingerprint is recorded, so a partial or
-concurrent rebuild never serves a mix of old and new files. A Rebuild clears
-the previous `p2/` set before writing the new one. Because the p2 files share
-the single Listing Fingerprint with the root, they are always mutually
-consistent with `packages.json`.
+A single manifest file (rather than one file per package on disk) keeps the
+write atomic and needs no stale-file cleanup: a package removed from Storage
+simply disappears from the new `p2.json`, so its endpoint 404s naturally.
+Because both artifacts share the single Listing Fingerprint and the Fingerprint
+is written last, a reader gating on the Fingerprint never sees a mix of old and
+new files — `p2.json` is always mutually consistent with `packages.json`.
+
+Concretely, `rebuild()` takes a build closure returning a
+`array<string,string>` map of artifact-name → content, writes each atomically,
+then writes the hash. `readIfFresh()` and `readIfHashMatches()` take the
+artifact name to read. The existing file-locking is unchanged.
 
 The existing file-locking and two-tier invalidation (Listing TTL bounds
 re-listing; Fingerprint decides whether to Rebuild) are unchanged and now
@@ -118,7 +127,8 @@ GET /p2/{vendor}/{package}.json   → Controller::metadata()
 
 `metadata()` runs the *same* freshness pipeline as `packages()`
 (`readIfFresh` → `scan` → Fingerprint match → `rebuild`) to guarantee the p2
-files are current, then serves the cached `p2/vendor/package.json`.
+manifest is current, then reads `p2.json`, looks up the requested package, and
+serves `{"packages":{"vendor/package":[ … ]}}`.
 
 - Unknown package → **404**.
 - A `~dev` request (`/p2/vendor/package~dev.json`) resolves to package name
@@ -165,8 +175,9 @@ version from the array → downloads via the existing `GET /dist/…` route.
 - **`ControllerTest`**: `/p2/vendor/package.json` returns the package's
   versions; unknown package and `~dev` requests return 404; the route requires
   auth.
-- **`CacheTest`**: p2 files are written and cleared atomically with the root
-  under a single Fingerprint; a stale/partial state is never served.
+- **`CacheTest`**: `packages.json` and `p2.json` are written atomically under a
+  single Fingerprint; named-artifact reads (`readIfFresh`/`readIfHashMatches`)
+  return the right file; a stale/partial state is never served.
 - **EndToEnd / Smoke**: the full v2 resolve path
   (`packages.json` → `p2` → `dist`) and the unchanged v1 path.
 - **Quality pipeline** (`composer rector` → `pint` → `test` → `stan`) green,
