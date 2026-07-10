@@ -89,7 +89,9 @@ final readonly class PackagesJson
         // p2 manifest: one entry per Package, version objects newest-first.
         $p2 = [];
         foreach ($packages as $name => $versions) {
-            $p2[$name] = array_values(array_reverse($versions));
+            // Newest version first — version_compare is semver-aware (native, no dependency).
+            uksort($versions, static fn (string $a, string $b): int => version_compare($b, $a));
+            $p2[$name] = array_values($versions);
         }
 
         // Root Index: inline v1 `packages` plus the v2 metadata-url discovery keys.

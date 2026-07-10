@@ -178,4 +178,21 @@ final class PackagesJsonTest extends TestCase
         $result = (new PackagesJson(new NullLogger()))->build([], fn (): null => null, 'https://x');
         self::assertEquals(new \stdClass(), json_decode($result->p2Json));
     }
+
+    public function testP2ManifestOrdersVersionsSemverNewestFirst(): void
+    {
+        $entries = [
+            $this->entry('acme', 'billing', '1.2.0'),
+            $this->entry('acme', 'billing', '1.10.0'),
+            $this->entry('acme', 'billing', '1.9.0'),
+        ];
+        $reader = fn (Release $e): ZipMeta => new ZipMeta(
+            ['name' => "{$e->vendor}/{$e->package}", 'version' => $e->version, 'type' => 'library'],
+            str_repeat('a', 40)
+        );
+        $result = (new PackagesJson(new NullLogger()))->build($entries, $reader, 'https://example.com');
+        $manifest = json_decode($result->p2Json, true);
+
+        self::assertSame(['1.10.0', '1.9.0', '1.2.0'], array_column($manifest['acme/billing'], 'version'));
+    }
 }
