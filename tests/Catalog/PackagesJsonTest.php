@@ -121,10 +121,61 @@ final class PackagesJsonTest extends TestCase
         $builder = new PackagesJson(new NullLogger());
         $result = $builder->build([], fn (): null => null, 'https://x');
         $decoded = json_decode($result->json, true);
-        $expectedObj = new \stdClass();
-        $expectedObj->packages = new \stdClass();
-        self::assertEquals($expectedObj, json_decode($result->json), 'should be {} not []');
         self::assertSame([], $decoded['packages']);
+        self::assertSame('https://x/p2/%package%.json', $decoded['metadata-url']);
+        self::assertSame([], $decoded['available-packages']);
         self::assertSame(0, $result->packagesCount);
+    }
+
+    public function testRootAdvertisesV2MetadataUrlAndAvailablePackages(): void
+    {
+        $entries = [
+            $this->entry('acme', 'billing', '1.2.0'),
+            $this->entry('zeta', 'tools', '0.1.0'),
+        ];
+        $reader = fn (Release $e): ZipMeta => new ZipMeta(
+            ['name' => "{$e->vendor}/{$e->package}", 'version' => $e->version, 'type' => 'library'],
+            str_repeat('a', 40)
+        );
+        $result = (new PackagesJson(new NullLogger()))->build($entries, $reader, 'https://example.com');
+        $decoded = json_decode($result->json, true);
+
+        self::assertSame('https://example.com/p2/%package%.json', $decoded['metadata-url']);
+        self::assertSame(['acme/billing', 'zeta/tools'], $decoded['available-packages']);
+        // Inline v1 map still present and unchanged.
+        self::assertArrayHasKey('acme/billing', $decoded['packages']);
+    }
+
+    public function testP2ManifestListsVersionsNewestFirst(): void
+    {
+        $entries = [
+            $this->entry('acme', 'billing', '1.2.0'),
+            $this->entry('acme', 'billing', '1.3.0'),
+        ];
+        $reader = fn (Release $e): ZipMeta => new ZipMeta(
+            ['name' => "{$e->vendor}/{$e->package}", 'version' => $e->version, 'type' => 'library', 'require' => ['php' => '^8.2']],
+            str_repeat('a', 40)
+        );
+        $result = (new PackagesJson(new NullLogger()))->build($entries, $reader, 'https://example.com');
+        $manifest = json_decode($result->p2Json, true);
+
+        self::assertArrayHasKey('acme/billing', $manifest);
+        $versions = $manifest['acme/billing'];
+        self::assertSame(['1.3.0', '1.2.0'], array_column($versions, 'version'));
+        // Each entry is a full version object with the injected dist block.
+        self::assertSame('acme/billing', $versions[0]['name']);
+        self::assertSame('library', $versions[0]['type']);
+        self::assertSame(
+            'https://example.com/dist/acme/billing/1.3.0.zip',
+            $versions[0]['dist']['url']
+        );
+        self::assertSame('zip', $versions[0]['dist']['type']);
+        self::assertSame(str_repeat('a', 40), $versions[0]['dist']['shasum']);
+    }
+
+    public function testP2ManifestIsEmptyObjectWhenNoPackages(): void
+    {
+        $result = (new PackagesJson(new NullLogger()))->build([], fn (): null => null, 'https://x');
+        self::assertEquals(new \stdClass(), json_decode($result->p2Json));
     }
 }
