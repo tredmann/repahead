@@ -103,4 +103,23 @@ final class CacheTest extends TestCase
         self::assertSame('{"b":2}', file_get_contents($this->dir . '/packages.json'));
         self::assertSame('hashB', file_get_contents($this->dir . '/manifest.hash'));
     }
+
+    public function testRebuildRunsRealBuildWhenAnArtifactIsMissingDespiteHashMatch(): void
+    {
+        $cache = new Cache($this->dir, ttlSeconds: 0);
+        $cache->rebuild('hashA', fn (): array => $this->bundle('{"a":1}', '{"b":2}'));
+
+        // Simulate a lost artifact while the fingerprint still matches.
+        unlink($this->dir . '/p2.json');
+
+        $built = false;
+        $result = $cache->rebuild('hashA', function () use (&$built): array {
+            $built = true;
+            return $this->bundle('{"a":1}', '{"b":2}');
+        });
+
+        self::assertTrue($built, 'build closure must run when an artifact is missing');
+        self::assertSame('{"b":2}', file_get_contents($this->dir . '/p2.json'));
+        self::assertSame(['packages.json' => '{"a":1}', 'p2.json' => '{"b":2}'], $result);
+    }
 }
