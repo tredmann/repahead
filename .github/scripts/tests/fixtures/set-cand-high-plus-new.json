@@ -1,0 +1,4 @@
+[
+  {"id":"CVE-2026-31122","pkg":"busybox","severity":"HIGH","installed":"1.37.0-r12","fixed":"1.37.0-r13"},
+  {"id":"CVE-2026-55010","pkg":"sqlite","severity":"HIGH","installed":"3.50.1-r0","fixed":"3.50.2-r0"}
+]

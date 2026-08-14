@@ -1,0 +1,44 @@
+{
+  "SchemaVersion": 2,
+  "ArtifactName": "tredmann/repahead:latest",
+  "Results": [
+    {
+      "Target": "tredmann/repahead:latest (alpine 3.22.1)",
+      "Class": "os-pkgs",
+      "Type": "alpine",
+      "Vulnerabilities": [
+        {
+          "VulnerabilityID": "CVE-2026-45447",
+          "PkgName": "openssl",
+          "InstalledVersion": "3.5.4-r0",
+          "FixedVersion": "3.5.4-r1",
+          "Severity": "CRITICAL",
+          "Title": "openssl: heap use-after-free in PKCS7_verify"
+        },
+        {
+          "VulnerabilityID": "CVE-2026-31122",
+          "PkgName": "busybox",
+          "InstalledVersion": "1.37.0-r12",
+          "FixedVersion": "1.37.0-r13",
+          "Severity": "HIGH",
+          "Title": "busybox: out-of-bounds read"
+        }
+      ]
+    },
+    {
+      "Target": "usr/bin/repahead",
+      "Class": "lang-pkgs",
+      "Type": "gobinary",
+      "Vulnerabilities": [
+        {
+          "VulnerabilityID": "CVE-2026-45447",
+          "PkgName": "openssl",
+          "InstalledVersion": "3.5.4-r0",
+          "FixedVersion": "3.5.4-r1",
+          "Severity": "CRITICAL",
+          "Title": "openssl: heap use-after-free in PKCS7_verify"
+        }
+      ]
+    }
+  ]
+}

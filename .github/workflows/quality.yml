@@ -46,3 +46,6 @@ jobs:
 
       - name: PHPStan (level 8)
         run: composer stan
+
+      - name: CVE decision scripts
+        run: .github/scripts/tests/run.sh

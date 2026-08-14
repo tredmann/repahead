@@ -1,0 +1,11 @@
+{
+  "SchemaVersion": 2,
+  "ArtifactName": "repahead:candidate",
+  "Results": [
+    {
+      "Target": "repahead:candidate (alpine 3.22.1)",
+      "Class": "os-pkgs",
+      "Type": "alpine"
+    }
+  ]
+}

@@ -1,0 +1,4 @@
+[
+  {"id":"CVE-2026-31122","pkg":"busybox","severity":"HIGH","installed":"1.37.0-r12","fixed":"1.37.0-r13"},
+  {"id":"CVE-2026-45447","pkg":"openssl","severity":"CRITICAL","installed":"3.5.4-r0","fixed":"3.5.4-r1"}
+]
