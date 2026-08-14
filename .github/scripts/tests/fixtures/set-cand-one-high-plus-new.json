@@ -1,0 +1,4 @@
+[
+  {"id":"CVE-2026-12345","pkg":"libxml2","severity":"HIGH","installed":"2.14.1-r0","fixed":"2.14.2-r1"},
+  {"id":"CVE-2026-55010","pkg":"sqlite","severity":"HIGH","installed":"3.50.1-r0","fixed":"3.50.2-r0"}
+]

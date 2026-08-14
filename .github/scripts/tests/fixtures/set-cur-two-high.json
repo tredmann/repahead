@@ -1,0 +1,4 @@
+[
+  {"id":"CVE-2026-12345","pkg":"libxml2","severity":"HIGH","installed":"2.14.1-r0","fixed":"2.14.2-r1"},
+  {"id":"CVE-2026-31122","pkg":"busybox","severity":"HIGH","installed":"1.37.0-r12","fixed":"1.37.0-r13"}
+]
