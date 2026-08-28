@@ -295,6 +295,24 @@ assert_eq "reports the introduced CRITICAL as introduced, not cleared" \
 assert_eq "omits the newly-introduced heading in notes when nothing was introduced" \
   "0" "$(decide set-cur-crit-high.json set-cand-high.json '.notes_markdown' | grep -c '### Newly introduced')"
 
+assert_eq "retains the default release-notes lead when no provenance is given" \
+  "Automated security patch: rebuilt Docker image picks up updated OS packages from the base image. No PHP code changes." \
+  "$(decide set-cur-crit-high.json set-cand-high.json '.notes_markdown' | head -1)"
+
+assert_eq "uses the supplied provenance as the release-notes lead" \
+  "Automated security patch: updated composer.lock and rebuilt on a fresh base image." \
+  "$("$scripts/cve-decide.sh" "$fixtures/set-cur-crit-high.json" "$fixtures/set-cand-high.json" \
+      "Automated security patch: updated composer.lock and rebuilt on a fresh base image." \
+      | jq -r '.notes_markdown' | head -1)"
+
+assert_eq "still lists cleared findings under a supplied provenance" \
+  "- CVE-2026-45447 (CRITICAL) — openssl 3.5.4-r0 → 3.5.4-r1" \
+  "$("$scripts/cve-decide.sh" "$fixtures/set-cur-crit-high.json" "$fixtures/set-cand-high.json" \
+      "Custom lead." | jq -r '.notes_markdown' | grep 'CVE-2026-45447')"
+
+assert_exit_code "rejects a fourth argument" 2 \
+  "$scripts/cve-decide.sh" "$fixtures/set-empty.json" "$fixtures/set-empty.json" "lead" "extra"
+
 assert_fails "rejects a malformed finding set" \
   "$scripts/cve-decide.sh" "$fixtures/trivy-malformed.json" "$fixtures/set-empty.json"
 
