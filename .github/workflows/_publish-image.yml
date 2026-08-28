@@ -9,6 +9,10 @@ on:
       tag-latest:
         type: boolean
         default: true
+      ref:
+        description: Commit SHA or ref to build. Empty means the triggering ref.
+        type: string
+        default: ''
     secrets:
       DOCKERHUB_USERNAME:
         required: true
@@ -21,6 +25,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
 
       - name: Set up PHP 8.5
         uses: shivammathur/setup-php@v2
@@ -58,6 +64,8 @@ jobs:
     needs: quality
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
 
       - name: Compose image tags
         id: tags
