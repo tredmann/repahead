@@ -71,6 +71,185 @@ assert_exit_code "rejects a report Trivy could not analyze at all" 3 \
   "$scripts/cve-reduce.sh" "$fixtures/trivy-unanalyzable.json"
 
 echo
+echo "cve-audit-reduce.sh"
+
+# audit_reduce <audit fixture> <lock fixture>
+audit_reduce() {
+  "$scripts/cve-audit-reduce.sh" "$fixtures/$1" "$fixtures/$2"
+}
+
+assert_eq "keeps HIGH and CRITICAL advisories and drops MEDIUM" \
+  '[{"id":"CVE-2026-54133","pkg":"mtdowling/jmespath.php","severity":"CRITICAL","installed":"2.8.0","fixed":""},{"id":"CVE-2026-69246","pkg":"guzzlehttp/guzzle","severity":"HIGH","installed":"7.10.0","fixed":""}]' \
+  "$(audit_reduce audit-two-advisories.json composer-lock-sample.json)"
+
+assert_eq "treats an unrated advisory as HIGH rather than dropping it" \
+  "HIGH" \
+  "$(audit_reduce audit-null-severity.json composer-lock-sample.json | jq -r '.[0].severity')"
+
+assert_eq "falls back to advisoryId when an advisory carries no CVE" \
+  "PKSA-nocve-0002" \
+  "$(audit_reduce audit-no-cve.json composer-lock-sample.json | jq -r '.[0].id')"
+
+assert_eq "resolves installed versions from packages-dev as well as packages" \
+  "10.5.63" \
+  "$(audit_reduce audit-no-cve.json composer-lock-sample.json | jq -r '.[0].installed')"
+
+assert_eq "strips a leading v from the installed version" \
+  "5.6.3" \
+  "$(audit_reduce audit-v-prefixed.json composer-lock-sample.json | jq -r '.[0].installed')"
+
+assert_eq "falls back id to UNKNOWN when an advisory carries neither a CVE nor an advisoryId" \
+  "UNKNOWN" \
+  "$(audit_reduce audit-no-id.json composer-lock-sample.json | jq -r '.[0].id')"
+
+assert_eq "reduces an empty advisories object to an empty set" \
+  '[]' \
+  "$(audit_reduce audit-clean-object.json composer-lock-sample.json)"
+
+assert_eq "reduces an empty advisories array to an empty set" \
+  '[]' \
+  "$(audit_reduce audit-clean-array.json composer-lock-sample.json)"
+
+assert_exit_code "rejects a report with no advisories key" 3 \
+  "$scripts/cve-audit-reduce.sh" "$fixtures/audit-no-advisories-key.json" "$fixtures/composer-lock-sample.json"
+
+assert_fails "rejects a malformed report" \
+  "$scripts/cve-audit-reduce.sh" "$fixtures/audit-malformed.json" "$fixtures/composer-lock-sample.json"
+
+assert_exit_code "rejects a missing report" 2 \
+  "$scripts/cve-audit-reduce.sh" "$fixtures/does-not-exist.json" "$fixtures/composer-lock-sample.json"
+
+assert_exit_code "rejects a missing lock file" 2 \
+  "$scripts/cve-audit-reduce.sh" "$fixtures/audit-clean-object.json" "$fixtures/does-not-exist.json"
+
+assert_exit_code "rejects a wrong argument count" 2 \
+  "$scripts/cve-audit-reduce.sh" "$fixtures/audit-clean-object.json"
+
+echo
+echo "cve-merge.sh"
+
+# merge <set fixture a> <set fixture b>
+merge() {
+  "$scripts/cve-merge.sh" "$fixtures/$1" "$fixtures/$2"
+}
+
+assert_eq "collapses the same finding reported by both sensors into one record" \
+  "1" \
+  "$(merge set-audit-critical.json set-trivy-overlap.json | jq 'length')"
+
+assert_eq "keeps CRITICAL when the two sensors disagree on severity" \
+  "CRITICAL" \
+  "$(merge set-audit-critical.json set-trivy-overlap.json | jq -r '.[0].severity')"
+
+assert_eq "prefers the record carrying a fix version" \
+  "2.9.1" \
+  "$(merge set-audit-critical.json set-trivy-overlap.json | jq -r '.[0].fixed')"
+
+assert_eq "is commutative for severity and fix version" \
+  "CRITICAL 2.9.1" \
+  "$(merge set-trivy-overlap.json set-audit-critical.json | jq -r '.[0].severity + " " + .[0].fixed')"
+
+assert_eq "unions disjoint sets and sorts by id" \
+  '[{"id":"CVE-2026-31122","pkg":"busybox","severity":"HIGH","installed":"1.37.0-r12","fixed":"1.37.0-r13"},{"id":"CVE-2026-45447","pkg":"openssl","severity":"CRITICAL","installed":"3.5.4-r0","fixed":"3.5.4-r1"},{"id":"CVE-2026-54133","pkg":"mtdowling/jmespath.php","severity":"CRITICAL","installed":"2.8.0","fixed":""}]' \
+  "$(merge set-cur-crit-high.json set-audit-critical.json)"
+
+assert_eq "merges two empty sets to an empty set" \
+  '[]' \
+  "$(merge set-empty.json set-empty.json)"
+
+assert_eq "merging with an empty set is an identity" \
+  '[{"id":"CVE-2026-54133","pkg":"mtdowling/jmespath.php","severity":"CRITICAL","installed":"2.8.0","fixed":""}]' \
+  "$(merge set-audit-critical.json set-empty.json)"
+
+assert_fails "rejects a malformed finding set" \
+  "$scripts/cve-merge.sh" "$fixtures/audit-malformed.json" "$fixtures/set-empty.json"
+
+assert_exit_code "rejects a missing finding set" 2 \
+  "$scripts/cve-merge.sh" "$fixtures/does-not-exist.json" "$fixtures/set-empty.json"
+
+assert_exit_code "rejects a wrong argument count" 2 \
+  "$scripts/cve-merge.sh" "$fixtures/set-empty.json"
+
+echo
+echo "composer-pins.sh"
+
+assert_eq "emits one --with pair per pinnable package" \
+  "4" \
+  "$("$scripts/composer-pins.sh" "$fixtures/lock-pin-sample.json" | grep -c -- '--with')"
+
+assert_eq "pins a normal version to its own major" \
+  "guzzlehttp/guzzle:^7.10.0" \
+  "$("$scripts/composer-pins.sh" "$fixtures/lock-pin-sample.json" | grep 'guzzlehttp/guzzle')"
+
+assert_eq "strips a leading v from the pin" \
+  "vlucas/phpdotenv:^5.6.3" \
+  "$("$scripts/composer-pins.sh" "$fixtures/lock-pin-sample.json" | grep 'vlucas/phpdotenv')"
+
+assert_eq "pins a 0.x package, letting composer cap it at the minor" \
+  "some/zeroed:^0.3.0" \
+  "$("$scripts/composer-pins.sh" "$fixtures/lock-pin-sample.json" | grep 'some/zeroed')"
+
+assert_eq "skips a branch alias rather than pinning it" \
+  "0" \
+  "$("$scripts/composer-pins.sh" "$fixtures/lock-pin-sample.json" | grep -c 'branchalias')"
+
+assert_eq "skips a numeric -dev version rather than pinning it" \
+  "0" \
+  "$("$scripts/composer-pins.sh" "$fixtures/lock-pin-sample.json" | grep -c 'numericdev')"
+
+assert_eq "includes packages-dev" \
+  "phpunit/phpunit:^10.5.63" \
+  "$("$scripts/composer-pins.sh" "$fixtures/lock-pin-sample.json" | grep 'phpunit/phpunit')"
+
+assert_eq "terminates the last line with a newline" \
+  "8" \
+  "$("$scripts/composer-pins.sh" "$fixtures/lock-pin-sample.json" | wc -l | tr -d ' ')"
+
+assert_exit_code "rejects a missing lock" 2 \
+  "$scripts/composer-pins.sh" "$fixtures/does-not-exist.json"
+
+assert_exit_code "rejects a wrong argument count" 2 \
+  "$scripts/composer-pins.sh"
+
+echo
+echo "composer-lock-diff.sh"
+
+# kind_of <package name>
+kind_of() {
+  "$scripts/composer-lock-diff.sh" "$fixtures/lock-diff-before.json" "$fixtures/lock-diff-after.json" \
+    | jq -r --arg p "$1" '.[] | select(.pkg == $p) | .kind'
+}
+
+assert_eq "classifies a crossed major as major" "major" "$(kind_of crosses/major)"
+assert_eq "classifies an in-major upgrade as minor" "minor" "$(kind_of stays/minor)"
+assert_eq "classifies 0.3 to 0.4 as major" "major" "$(kind_of zero/major)"
+assert_eq "classifies 0.3.0 to 0.3.9 as minor" "minor" "$(kind_of zero/minor)"
+assert_eq "classifies a move to a branch alias as major" "major" "$(kind_of goes/branch)"
+assert_eq "classifies a numeric -dev version resolving to a release as major" "major" "$(kind_of goes/numericdev)"
+assert_eq "classifies a new package as added" "added" "$(kind_of gets/added)"
+assert_eq "classifies a dropped package as removed" "removed" "$(kind_of gets/removed)"
+
+assert_eq "omits packages whose version did not change" \
+  "0" \
+  "$("$scripts/composer-lock-diff.sh" "$fixtures/lock-diff-before.json" "$fixtures/lock-diff-after.json" \
+      | jq '[.[] | select(.pkg == "stays/identical")] | length')"
+
+assert_eq "reports the from and to versions" \
+  "7.10.0 8.1.0" \
+  "$("$scripts/composer-lock-diff.sh" "$fixtures/lock-diff-before.json" "$fixtures/lock-diff-after.json" \
+      | jq -r '.[] | select(.pkg == "crosses/major") | .from + " " + .to')"
+
+assert_eq "returns an empty array for identical locks" \
+  '[]' \
+  "$("$scripts/composer-lock-diff.sh" "$fixtures/lock-diff-before.json" "$fixtures/lock-diff-before.json")"
+
+assert_exit_code "rejects a missing lock" 2 \
+  "$scripts/composer-lock-diff.sh" "$fixtures/does-not-exist.json" "$fixtures/lock-diff-after.json"
+
+assert_exit_code "rejects a wrong argument count" 2 \
+  "$scripts/composer-lock-diff.sh" "$fixtures/lock-diff-before.json"
+
+echo
 echo "cve-decide.sh"
 
 # decide <current fixture> <candidate fixture> <jq filter over the decision object>
@@ -128,6 +307,24 @@ assert_eq "reports the introduced CRITICAL as introduced, not cleared" \
 
 assert_eq "omits the newly-introduced heading in notes when nothing was introduced" \
   "0" "$(decide set-cur-crit-high.json set-cand-high.json '.notes_markdown' | grep -c '### Newly introduced')"
+
+assert_eq "retains the default release-notes lead when no provenance is given" \
+  "Automated security patch: rebuilt Docker image picks up updated OS packages from the base image. No PHP code changes." \
+  "$(decide set-cur-crit-high.json set-cand-high.json '.notes_markdown' | head -1)"
+
+assert_eq "uses the supplied provenance as the release-notes lead" \
+  "Automated security patch: updated composer.lock and rebuilt on a fresh base image." \
+  "$("$scripts/cve-decide.sh" "$fixtures/set-cur-crit-high.json" "$fixtures/set-cand-high.json" \
+      "Automated security patch: updated composer.lock and rebuilt on a fresh base image." \
+      | jq -r '.notes_markdown' | head -1)"
+
+assert_eq "still lists cleared findings under a supplied provenance" \
+  "- CVE-2026-45447 (CRITICAL) — openssl 3.5.4-r0 → 3.5.4-r1" \
+  "$("$scripts/cve-decide.sh" "$fixtures/set-cur-crit-high.json" "$fixtures/set-cand-high.json" \
+      "Custom lead." | jq -r '.notes_markdown' | grep 'CVE-2026-45447')"
+
+assert_exit_code "rejects a fourth argument" 2 \
+  "$scripts/cve-decide.sh" "$fixtures/set-empty.json" "$fixtures/set-empty.json" "lead" "extra"
 
 assert_fails "rejects a malformed finding set" \
   "$scripts/cve-decide.sh" "$fixtures/trivy-malformed.json" "$fixtures/set-empty.json"

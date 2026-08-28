@@ -1,0 +1,3 @@
+[
+  {"id":"CVE-2026-54133","pkg":"mtdowling/jmespath.php","severity":"HIGH","installed":"2.8.0","fixed":"2.9.1"}
+]

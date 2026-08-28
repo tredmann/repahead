@@ -1,0 +1,16 @@
+{
+  "advisories": {
+    "phpunit/phpunit": [
+      {
+        "advisoryId": "PKSA-nocve-0002",
+        "packageName": "phpunit/phpunit",
+        "affectedVersions": "<10.5.64",
+        "title": "Advisory with no assigned CVE",
+        "cve": null,
+        "severity": "high"
+      }
+    ]
+  },
+  "abandoned": [],
+  "filter": []
+}

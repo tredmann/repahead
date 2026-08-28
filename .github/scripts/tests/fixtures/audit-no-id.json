@@ -1,0 +1,16 @@
+{
+  "advisories": {
+    "guzzlehttp/guzzle": [
+      {
+        "advisoryId": null,
+        "packageName": "guzzlehttp/guzzle",
+        "affectedVersions": "<7.15.2",
+        "title": "Advisory with neither a CVE nor an advisoryId",
+        "cve": null,
+        "severity": "high"
+      }
+    ]
+  },
+  "abandoned": [],
+  "filter": []
+}
