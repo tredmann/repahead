@@ -37,7 +37,7 @@ final readonly class Auth implements MiddlewareInterface
 
         $userOk = hash_equals($this->user, $user);
         $passOk = hash_equals($this->pass, $pass);
-        if (!($userOk && $passOk)) {
+        if (!$userOk || !$passOk) {
             $this->logger->warning('Auth rejected: invalid credentials', [
                 'submitted_user' => $user,
                 'user_match' => $userOk,
