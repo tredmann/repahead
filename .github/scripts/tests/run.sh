@@ -163,6 +163,43 @@ assert_exit_code "rejects a wrong argument count" 2 \
   "$scripts/cve-merge.sh" "$fixtures/set-empty.json"
 
 echo
+echo "composer-pins.sh"
+
+assert_eq "emits one --with pair per pinnable package" \
+  "4" \
+  "$("$scripts/composer-pins.sh" "$fixtures/lock-pin-sample.json" | grep -c -- '--with')"
+
+assert_eq "pins a normal version to its own major" \
+  "guzzlehttp/guzzle:^7.10.0" \
+  "$("$scripts/composer-pins.sh" "$fixtures/lock-pin-sample.json" | grep 'guzzlehttp/guzzle')"
+
+assert_eq "strips a leading v from the pin" \
+  "vlucas/phpdotenv:^5.6.3" \
+  "$("$scripts/composer-pins.sh" "$fixtures/lock-pin-sample.json" | grep 'vlucas/phpdotenv')"
+
+assert_eq "pins a 0.x package, letting composer cap it at the minor" \
+  "some/zeroed:^0.3.0" \
+  "$("$scripts/composer-pins.sh" "$fixtures/lock-pin-sample.json" | grep 'some/zeroed')"
+
+assert_eq "skips a branch alias rather than pinning it" \
+  "0" \
+  "$("$scripts/composer-pins.sh" "$fixtures/lock-pin-sample.json" | grep -c 'branchalias')"
+
+assert_eq "includes packages-dev" \
+  "phpunit/phpunit:^10.5.63" \
+  "$("$scripts/composer-pins.sh" "$fixtures/lock-pin-sample.json" | grep 'phpunit/phpunit')"
+
+assert_eq "terminates the last line with a newline" \
+  "8" \
+  "$("$scripts/composer-pins.sh" "$fixtures/lock-pin-sample.json" | wc -l | tr -d ' ')"
+
+assert_exit_code "rejects a missing lock" 2 \
+  "$scripts/composer-pins.sh" "$fixtures/does-not-exist.json"
+
+assert_exit_code "rejects a wrong argument count" 2 \
+  "$scripts/composer-pins.sh"
+
+echo
 echo "cve-decide.sh"
 
 # decide <current fixture> <candidate fixture> <jq filter over the decision object>
