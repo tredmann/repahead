@@ -6,8 +6,8 @@ namespace RepAhead\Http;
 
 /**
  * Renders the human-facing landing page from the decoded packages.json Index:
- * one card per Package, listing its Releases newest-first with a link to each
- * Release ZIP. Satis-style — static HTML, no JavaScript, no external assets.
+ * one card per Package, listing its Releases newest-first with an install
+ * command to copy for each Release. Satis-style, with no external assets.
  */
 final class IndexView
 {
@@ -41,9 +41,28 @@ final class IndexView
             ? '<p class="desc">' . self::e($latest['description']) . '</p>'
             : '';
 
-        $rows = '';
+        $devVersions = [];
+        $stableVersions = [];
         foreach ($ordered as $version => $info) {
-            $rows .= self::version((string) $version, $info);
+            if (str_starts_with($version, 'dev-')) {
+                $devVersions[$version] = $info;
+            } else {
+                $stableVersions[$version] = $info;
+            }
+        }
+
+        $groups = '';
+        if ($stableVersions !== []) {
+            $groups .= self::versionGroup($name, 'Releases', $stableVersions, 'versions', 'version-group');
+        }
+        if ($devVersions !== []) {
+            $groups .= self::versionGroup(
+                $name,
+                'Dev builds',
+                $devVersions,
+                'versions versions-dev',
+                'version-group version-group-dev',
+            );
         }
 
         $safeName = self::e($name);
@@ -54,28 +73,45 @@ final class IndexView
         <article class="pkg">
             <div class="pkg-head">
                 <h2>{$safeName}</h2>
-                <input class="copy" type="text" readonly size="{$size}" value="{$require}" aria-label="Install command, click to copy">
+                <input class="copy" type="text" readonly size="{$size}" value="{$require}" data-composer-command="{$require}" aria-label="Install command, click to copy">
             </div>
             {$description}
-            <ul class="versions">{$rows}</ul>
+            {$groups}
         </article>
 
         HTML;
     }
 
-    /** @param array<string, mixed> $info */
-    private static function version(string $version, array $info): string
+    /** @param array<string, array<string, mixed>> $versions */
+    private static function versionGroup(
+        string $name,
+        string $label,
+        array $versions,
+        string $listClass,
+        string $groupClass,
+    ): string {
+        $rows = '';
+        foreach (array_keys($versions) as $version) {
+            $rows .= self::version($name, (string) $version);
+        }
+        $safeLabel = self::e($label);
+        $safeListClass = self::e($listClass);
+        $safeGroupClass = self::e($groupClass);
+        return <<<HTML
+        <div class="{$safeGroupClass}">
+            <h3 class="group-label">{$safeLabel}</h3>
+            <ul class="{$safeListClass}">{$rows}</ul>
+        </div>
+        HTML;
+    }
+
+    private static function version(string $name, string $version): string
     {
         $label = self::e($version);
-        $dist = $info['dist'] ?? null;
-        $url = is_array($dist) && isset($dist['url']) && is_string($dist['url']) ? $dist['url'] : null;
+        $command = self::e("composer require {$name}:{$version}");
+        $ariaLabel = self::e("Copy install command for {$name} {$version}");
 
-        if ($url === null) {
-            return "<li><span class=\"ver\">{$label}</span></li>";
-        }
-
-        $href = self::e($url);
-        return "<li><span class=\"ver\">{$label}</span> <a href=\"{$href}\">zip</a></li>";
+        return "<li><button class=\"version-copy\" type=\"button\" data-composer-command=\"{$command}\" aria-label=\"{$ariaLabel}\"><span class=\"ver\">{$label}</span><span class=\"copy-label\">copy</span></button></li>";
     }
 
     private static function document(int $count, string $baseUrl, string $cards): string
@@ -99,12 +135,6 @@ final class IndexView
                     margin: 0; padding: 2rem 1rem; max-width: 60rem; margin-inline: auto;
                     color: #1a1a1a; background: #fafafa;
                 }
-                @media (prefers-color-scheme: dark) {
-                    body { color: #e6e6e6; background: #161616; }
-                    .pkg { background: #1f1f1f; border-color: #333; }
-                    pre, .copy { background: #111; }
-                    .copy { border-color: #333; color: #e6e6e6; }
-                }
                 header { margin-bottom: 2rem; }
                 h1 { font-size: 1.5rem; margin: 0 0 .25rem; }
                 .meta { color: #888; margin: 0; }
@@ -114,7 +144,7 @@ final class IndexView
                 }
                 .pkg {
                     background: #fff; border: 1px solid #e5e5e5; border-radius: 8px;
-                    padding: 1rem 1.25rem; margin-bottom: 1rem;
+                    padding: 1rem 1.25rem; margin-bottom: 1rem; overflow: hidden;
                 }
                 .pkg-head {
                     display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1rem;
@@ -130,16 +160,44 @@ final class IndexView
                 .copy:hover { border-color: #2563eb; }
                 .copy.copied { border-color: #16a34a; color: #16a34a; }
                 .desc { color: #666; margin: .35rem 0 .75rem; }
+                .version-group { margin-top: .75rem; }
+                .version-group:first-child { margin-top: .5rem; }
+                .group-label {
+                    font-size: 11px; font-weight: 700; text-transform: uppercase;
+                    letter-spacing: .06em; color: #999; margin: 0 0 .4rem;
+                }
+                .version-group.version-group-dev {
+                    margin: 1rem -1.25rem -1rem; padding: .6rem 1.25rem;
+                    background: #f7f7f7; border-top: 1px solid #ececec;
+                    border-radius: 0 0 8px 8px;
+                }
                 .versions { list-style: none; margin: 0; padding: 0;
                     display: flex; flex-wrap: wrap; gap: .4rem; }
                 .versions li {
-                    display: inline-flex; align-items: baseline; gap: .4rem;
-                    border: 1px solid #ddd; border-radius: 999px; padding: .15rem .65rem;
+                    display: inline-flex;
                 }
-                @media (prefers-color-scheme: dark) { .versions li { border-color: #3a3a3a; } }
-                .ver { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
-                .versions a { text-decoration: none; color: #2563eb; font-size: 12px; }
-                .versions a:hover { text-decoration: underline; }
+                .version-copy {
+                    display: inline-flex; align-items: center; gap: .5rem;
+                    background: #f0f0f0; border: 1px solid transparent; border-radius: 6px;
+                    padding: .3rem .65rem; color: inherit; cursor: pointer;
+                }
+                .version-copy:hover { border-color: #2563eb; }
+                .version-copy.copied { border-color: #16a34a; color: #16a34a; }
+                .copy-label {
+                    color: #2563eb; font-size: 12px;
+                }
+                .versions-dev .version-copy { background: #fff; border-color: #ddd; }
+                @media (prefers-color-scheme: dark) {
+                    body { color: #e6e6e6; background: #161616; }
+                    .pkg { background: #1f1f1f; border-color: #333; }
+                    pre, .copy { background: #111; }
+                    .copy { border-color: #333; color: #e6e6e6; }
+                    .version-copy { background: #292929; }
+                    .version-group.version-group-dev { background: #191919; border-top-color: #2c2c2c; }
+                    .versions-dev .version-copy { background: #262626; border-color: #3a3a3a; }
+                    .group-label { color: #888; }
+                }
+                .ver { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; font-weight: 600; }
                 .empty { color: #888; }
             </style>
         </head>
@@ -151,13 +209,28 @@ final class IndexView
             </header>
             {$cards}
             <script>
+                function copyToClipboard(value) {
+                    if (navigator.clipboard) {
+                        navigator.clipboard.writeText(value);
+                        return;
+                    }
+
+                    var textarea = document.createElement('textarea');
+                    textarea.value = value;
+                    textarea.style.position = 'fixed';
+                    textarea.style.opacity = '0';
+                    document.body.appendChild(textarea);
+                    textarea.select();
+                    document.execCommand('copy');
+                    textarea.remove();
+                }
+
                 document.addEventListener('click', function (e) {
-                    var input = e.target.closest('.copy');
-                    if (!input) return;
-                    input.select();
-                    navigator.clipboard && navigator.clipboard.writeText(input.value);
-                    input.classList.add('copied');
-                    setTimeout(function () { input.classList.remove('copied'); }, 1000);
+                    var target = e.target.closest('[data-composer-command]');
+                    if (!target) return;
+                    copyToClipboard(target.dataset.composerCommand);
+                    target.classList.add('copied');
+                    setTimeout(function () { target.classList.remove('copied'); }, 1000);
                 });
             </script>
         </body>

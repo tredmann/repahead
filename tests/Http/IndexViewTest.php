@@ -9,7 +9,7 @@ use RepAhead\Http\IndexView;
 
 final class IndexViewTest extends TestCase
 {
-    public function testRendersPackagesGroupedWithZipLinks(): void
+    public function testRendersPackagesGroupedWithVersionInstallCommands(): void
     {
         $html = IndexView::render([
             'acme/billing' => [
@@ -25,8 +25,10 @@ final class IndexViewTest extends TestCase
 
         self::assertStringContainsString('acme/billing', $html);
         self::assertStringContainsString('Billing toolkit', $html);
-        self::assertStringContainsString('https://example.com/dist/acme/billing/1.0.0.zip', $html);
-        self::assertStringContainsString('https://example.com/dist/acme/billing/1.1.0.zip', $html);
+        self::assertStringContainsString('data-composer-command="composer require acme/billing:1.0.0"', $html);
+        self::assertStringContainsString('data-composer-command="composer require acme/billing:1.1.0"', $html);
+        self::assertStringNotContainsString('https://example.com/dist/acme/billing/1.0.0.zip', $html);
+        self::assertStringNotContainsString('https://example.com/dist/acme/billing/1.1.0.zip', $html);
         // Newest version first.
         self::assertLessThan(strpos($html, '1.0.0'), strpos($html, '1.1.0'));
     }

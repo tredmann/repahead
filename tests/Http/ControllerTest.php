@@ -104,7 +104,7 @@ final class ControllerTest extends TestCase
         self::assertSame(200, $resp->getStatusCode());
     }
 
-    public function testHomeRendersHtmlWithPackageAndZipLink(): void
+    public function testHomeRendersHtmlWithVersionInstallCommand(): void
     {
         $resp = $this->controller->home(new ServerRequest());
         self::assertSame(200, $resp->getStatusCode());
@@ -112,7 +112,8 @@ final class ControllerTest extends TestCase
         $html = (string) $resp->getBody();
         self::assertStringContainsString('acme/billing', $html);
         self::assertStringContainsString('1.2.0', $html);
-        self::assertStringContainsString('https://example.com/dist/acme/billing/1.2.0.zip', $html);
+        self::assertStringContainsString('data-composer-command="composer require acme/billing:1.2.0"', $html);
+        self::assertStringNotContainsString('https://example.com/dist/acme/billing/1.2.0.zip', $html);
     }
 
     public function testHomeReturns503OnStorageListingFailure(): void
