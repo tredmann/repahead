@@ -13,8 +13,10 @@
 # >=7.10.0 <8.0.0, and ^0.3.0 as >=0.3.0 <0.4.0 - so 0.x packages, where the
 # minor segment carries breaking changes, need no special case.
 #
-# Packages whose version does not start with a digit (dev-main, 1.0.x-dev) are
-# skipped: there is no meaningful major to pin them to.
+# Packages whose version does not start with a digit (dev-main), or that
+# carries a -dev suffix (1.0.x-dev — this does start with a digit but is not
+# a real version Composer's parser accepts in a ^-pin; ^1.0.x-dev is rejected
+# outright), are skipped: there is no meaningful major to pin them to.
 set -euo pipefail
 
 if [ "$#" -ne 1 ]; then
@@ -34,6 +36,6 @@ jq -r '
   | .[]
   | .version as $v
   | ($v | sub("^v"; "")) as $clean
-  | select($clean | test("^[0-9]"))
+  | select(($clean | test("^[0-9]")) and ($clean | test("-dev") | not))
   | "--with\n\(.name):^\($clean)"
 ' "$lock"

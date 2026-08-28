@@ -94,6 +94,14 @@ assert_eq "resolves installed versions from packages-dev as well as packages" \
   "10.5.63" \
   "$(audit_reduce audit-no-cve.json composer-lock-sample.json | jq -r '.[0].installed')"
 
+assert_eq "strips a leading v from the installed version" \
+  "5.6.3" \
+  "$(audit_reduce audit-v-prefixed.json composer-lock-sample.json | jq -r '.[0].installed')"
+
+assert_eq "falls back id to UNKNOWN when an advisory carries neither a CVE nor an advisoryId" \
+  "UNKNOWN" \
+  "$(audit_reduce audit-no-id.json composer-lock-sample.json | jq -r '.[0].id')"
+
 assert_eq "reduces an empty advisories object to an empty set" \
   '[]' \
   "$(audit_reduce audit-clean-object.json composer-lock-sample.json)"
@@ -185,6 +193,10 @@ assert_eq "skips a branch alias rather than pinning it" \
   "0" \
   "$("$scripts/composer-pins.sh" "$fixtures/lock-pin-sample.json" | grep -c 'branchalias')"
 
+assert_eq "skips a numeric -dev version rather than pinning it" \
+  "0" \
+  "$("$scripts/composer-pins.sh" "$fixtures/lock-pin-sample.json" | grep -c 'numericdev')"
+
 assert_eq "includes packages-dev" \
   "phpunit/phpunit:^10.5.63" \
   "$("$scripts/composer-pins.sh" "$fixtures/lock-pin-sample.json" | grep 'phpunit/phpunit')"
@@ -213,6 +225,7 @@ assert_eq "classifies an in-major upgrade as minor" "minor" "$(kind_of stays/min
 assert_eq "classifies 0.3 to 0.4 as major" "major" "$(kind_of zero/major)"
 assert_eq "classifies 0.3.0 to 0.3.9 as minor" "minor" "$(kind_of zero/minor)"
 assert_eq "classifies a move to a branch alias as major" "major" "$(kind_of goes/branch)"
+assert_eq "classifies a numeric -dev version resolving to a release as major" "major" "$(kind_of goes/numericdev)"
 assert_eq "classifies a new package as added" "added" "$(kind_of gets/added)"
 assert_eq "classifies a dropped package as removed" "removed" "$(kind_of gets/removed)"
 

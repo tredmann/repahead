@@ -5,6 +5,7 @@
     {"name": "zero/major", "version": "0.3.0"},
     {"name": "zero/minor", "version": "0.3.0"},
     {"name": "goes/branch", "version": "1.0.0"},
+    {"name": "goes/numericdev", "version": "1.0.x-dev"},
     {"name": "gets/removed", "version": "1.0.0"},
     {"name": "stays/identical", "version": "2.0.0"}
   ],

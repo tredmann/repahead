@@ -1,0 +1,16 @@
+{
+  "advisories": {
+    "vlucas/phpdotenv": [
+      {
+        "advisoryId": "PKSA-vprefix-0001",
+        "packageName": "vlucas/phpdotenv",
+        "affectedVersions": "<5.6.4",
+        "title": "Advisory against a v-prefixed lock version",
+        "cve": "CVE-2026-00099",
+        "severity": "high"
+      }
+    ]
+  },
+  "abandoned": [],
+  "filter": []
+}

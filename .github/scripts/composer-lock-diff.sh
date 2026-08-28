@@ -11,9 +11,11 @@
 # "0", where it becomes "0.<minor>" - 0.x releases carry breaking changes in the
 # minor position, and composer's caret operator treats them the same way.
 #
-# A version on either side that does not start with a digit (dev-main,
-# 1.0.x-dev) is classified major, so anything unparseable needs a human rather
-# than being waved through as a safe upgrade.
+# A version on either side that does not start with a digit (dev-main), or
+# that carries a -dev suffix (1.0.x-dev — this does start with a digit, but
+# is a dev alias rather than a real release), is classified major, so
+# anything unparseable needs a human rather than being waved through as a
+# safe upgrade.
 set -euo pipefail
 
 if [ "$#" -ne 2 ]; then
@@ -38,7 +40,7 @@ jq -c -n --slurpfile before "$before" --slurpfile after "$after" '
     | from_entries;
 
   def major_key:
-    if test("^[0-9]") | not then null
+    if (test("^[0-9]") | not) or test("-dev") then null
     elif startswith("0.") then (split(".") | .[0] + "." + (.[1] // "0"))
     else (split(".") | .[0])
     end;
