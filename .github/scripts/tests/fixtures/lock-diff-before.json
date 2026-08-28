@@ -1,0 +1,12 @@
+{
+  "packages": [
+    {"name": "crosses/major", "version": "7.10.0"},
+    {"name": "stays/minor", "version": "7.10.0"},
+    {"name": "zero/major", "version": "0.3.0"},
+    {"name": "zero/minor", "version": "0.3.0"},
+    {"name": "goes/branch", "version": "1.0.0"},
+    {"name": "gets/removed", "version": "1.0.0"},
+    {"name": "stays/identical", "version": "2.0.0"}
+  ],
+  "packages-dev": []
+}

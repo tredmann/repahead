@@ -200,6 +200,43 @@ assert_exit_code "rejects a wrong argument count" 2 \
   "$scripts/composer-pins.sh"
 
 echo
+echo "composer-lock-diff.sh"
+
+# kind_of <package name>
+kind_of() {
+  "$scripts/composer-lock-diff.sh" "$fixtures/lock-diff-before.json" "$fixtures/lock-diff-after.json" \
+    | jq -r --arg p "$1" '.[] | select(.pkg == $p) | .kind'
+}
+
+assert_eq "classifies a crossed major as major" "major" "$(kind_of crosses/major)"
+assert_eq "classifies an in-major upgrade as minor" "minor" "$(kind_of stays/minor)"
+assert_eq "classifies 0.3 to 0.4 as major" "major" "$(kind_of zero/major)"
+assert_eq "classifies 0.3.0 to 0.3.9 as minor" "minor" "$(kind_of zero/minor)"
+assert_eq "classifies a move to a branch alias as major" "major" "$(kind_of goes/branch)"
+assert_eq "classifies a new package as added" "added" "$(kind_of gets/added)"
+assert_eq "classifies a dropped package as removed" "removed" "$(kind_of gets/removed)"
+
+assert_eq "omits packages whose version did not change" \
+  "0" \
+  "$("$scripts/composer-lock-diff.sh" "$fixtures/lock-diff-before.json" "$fixtures/lock-diff-after.json" \
+      | jq '[.[] | select(.pkg == "stays/identical")] | length')"
+
+assert_eq "reports the from and to versions" \
+  "7.10.0 8.1.0" \
+  "$("$scripts/composer-lock-diff.sh" "$fixtures/lock-diff-before.json" "$fixtures/lock-diff-after.json" \
+      | jq -r '.[] | select(.pkg == "crosses/major") | .from + " " + .to')"
+
+assert_eq "returns an empty array for identical locks" \
+  '[]' \
+  "$("$scripts/composer-lock-diff.sh" "$fixtures/lock-diff-before.json" "$fixtures/lock-diff-before.json")"
+
+assert_exit_code "rejects a missing lock" 2 \
+  "$scripts/composer-lock-diff.sh" "$fixtures/does-not-exist.json" "$fixtures/lock-diff-after.json"
+
+assert_exit_code "rejects a wrong argument count" 2 \
+  "$scripts/composer-lock-diff.sh" "$fixtures/lock-diff-before.json"
+
+echo
 echo "cve-decide.sh"
 
 # decide <current fixture> <candidate fixture> <jq filter over the decision object>

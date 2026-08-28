@@ -1,0 +1,12 @@
+{
+  "packages": [
+    {"name": "crosses/major", "version": "8.1.0"},
+    {"name": "stays/minor", "version": "7.15.5"},
+    {"name": "zero/major", "version": "0.4.0"},
+    {"name": "zero/minor", "version": "0.3.9"},
+    {"name": "goes/branch", "version": "dev-main"},
+    {"name": "gets/added", "version": "1.0.0"},
+    {"name": "stays/identical", "version": "2.0.0"}
+  ],
+  "packages-dev": []
+}
