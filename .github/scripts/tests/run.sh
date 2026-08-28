@@ -118,6 +118,51 @@ assert_exit_code "rejects a wrong argument count" 2 \
   "$scripts/cve-audit-reduce.sh" "$fixtures/audit-clean-object.json"
 
 echo
+echo "cve-merge.sh"
+
+# merge <set fixture a> <set fixture b>
+merge() {
+  "$scripts/cve-merge.sh" "$fixtures/$1" "$fixtures/$2"
+}
+
+assert_eq "collapses the same finding reported by both sensors into one record" \
+  "1" \
+  "$(merge set-audit-critical.json set-trivy-overlap.json | jq 'length')"
+
+assert_eq "keeps CRITICAL when the two sensors disagree on severity" \
+  "CRITICAL" \
+  "$(merge set-audit-critical.json set-trivy-overlap.json | jq -r '.[0].severity')"
+
+assert_eq "prefers the record carrying a fix version" \
+  "2.9.1" \
+  "$(merge set-audit-critical.json set-trivy-overlap.json | jq -r '.[0].fixed')"
+
+assert_eq "is commutative for severity and fix version" \
+  "CRITICAL 2.9.1" \
+  "$(merge set-trivy-overlap.json set-audit-critical.json | jq -r '.[0].severity + " " + .[0].fixed')"
+
+assert_eq "unions disjoint sets and sorts by id" \
+  '[{"id":"CVE-2026-31122","pkg":"busybox","severity":"HIGH","installed":"1.37.0-r12","fixed":"1.37.0-r13"},{"id":"CVE-2026-45447","pkg":"openssl","severity":"CRITICAL","installed":"3.5.4-r0","fixed":"3.5.4-r1"},{"id":"CVE-2026-54133","pkg":"mtdowling/jmespath.php","severity":"CRITICAL","installed":"2.8.0","fixed":""}]' \
+  "$(merge set-cur-crit-high.json set-audit-critical.json)"
+
+assert_eq "merges two empty sets to an empty set" \
+  '[]' \
+  "$(merge set-empty.json set-empty.json)"
+
+assert_eq "merging with an empty set is an identity" \
+  '[{"id":"CVE-2026-54133","pkg":"mtdowling/jmespath.php","severity":"CRITICAL","installed":"2.8.0","fixed":""}]' \
+  "$(merge set-audit-critical.json set-empty.json)"
+
+assert_fails "rejects a malformed finding set" \
+  "$scripts/cve-merge.sh" "$fixtures/audit-malformed.json" "$fixtures/set-empty.json"
+
+assert_exit_code "rejects a missing finding set" 2 \
+  "$scripts/cve-merge.sh" "$fixtures/does-not-exist.json" "$fixtures/set-empty.json"
+
+assert_exit_code "rejects a wrong argument count" 2 \
+  "$scripts/cve-merge.sh" "$fixtures/set-empty.json"
+
+echo
 echo "cve-decide.sh"
 
 # decide <current fixture> <candidate fixture> <jq filter over the decision object>
