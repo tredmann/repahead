@@ -71,6 +71,53 @@ assert_exit_code "rejects a report Trivy could not analyze at all" 3 \
   "$scripts/cve-reduce.sh" "$fixtures/trivy-unanalyzable.json"
 
 echo
+echo "cve-audit-reduce.sh"
+
+# audit_reduce <audit fixture> <lock fixture>
+audit_reduce() {
+  "$scripts/cve-audit-reduce.sh" "$fixtures/$1" "$fixtures/$2"
+}
+
+assert_eq "keeps HIGH and CRITICAL advisories and drops MEDIUM" \
+  '[{"id":"CVE-2026-54133","pkg":"mtdowling/jmespath.php","severity":"CRITICAL","installed":"2.8.0","fixed":""},{"id":"CVE-2026-69246","pkg":"guzzlehttp/guzzle","severity":"HIGH","installed":"7.10.0","fixed":""}]' \
+  "$(audit_reduce audit-two-advisories.json composer-lock-sample.json)"
+
+assert_eq "treats an unrated advisory as HIGH rather than dropping it" \
+  "HIGH" \
+  "$(audit_reduce audit-null-severity.json composer-lock-sample.json | jq -r '.[0].severity')"
+
+assert_eq "falls back to advisoryId when an advisory carries no CVE" \
+  "PKSA-nocve-0002" \
+  "$(audit_reduce audit-no-cve.json composer-lock-sample.json | jq -r '.[0].id')"
+
+assert_eq "resolves installed versions from packages-dev as well as packages" \
+  "10.5.63" \
+  "$(audit_reduce audit-no-cve.json composer-lock-sample.json | jq -r '.[0].installed')"
+
+assert_eq "reduces an empty advisories object to an empty set" \
+  '[]' \
+  "$(audit_reduce audit-clean-object.json composer-lock-sample.json)"
+
+assert_eq "reduces an empty advisories array to an empty set" \
+  '[]' \
+  "$(audit_reduce audit-clean-array.json composer-lock-sample.json)"
+
+assert_exit_code "rejects a report with no advisories key" 3 \
+  "$scripts/cve-audit-reduce.sh" "$fixtures/audit-no-advisories-key.json" "$fixtures/composer-lock-sample.json"
+
+assert_fails "rejects a malformed report" \
+  "$scripts/cve-audit-reduce.sh" "$fixtures/audit-malformed.json" "$fixtures/composer-lock-sample.json"
+
+assert_exit_code "rejects a missing report" 2 \
+  "$scripts/cve-audit-reduce.sh" "$fixtures/does-not-exist.json" "$fixtures/composer-lock-sample.json"
+
+assert_exit_code "rejects a missing lock file" 2 \
+  "$scripts/cve-audit-reduce.sh" "$fixtures/audit-clean-object.json" "$fixtures/does-not-exist.json"
+
+assert_exit_code "rejects a wrong argument count" 2 \
+  "$scripts/cve-audit-reduce.sh" "$fixtures/audit-clean-object.json"
+
+echo
 echo "cve-decide.sh"
 
 # decide <current fixture> <candidate fixture> <jq filter over the decision object>

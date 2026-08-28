@@ -1,0 +1,16 @@
+{
+  "advisories": {
+    "mtdowling/jmespath.php": [
+      {
+        "advisoryId": "PKSA-unrated-0001",
+        "packageName": "mtdowling/jmespath.php",
+        "affectedVersions": "<2.9.1",
+        "title": "Unrated advisory",
+        "cve": "CVE-2026-00001",
+        "severity": null
+      }
+    ]
+  },
+  "abandoned": [],
+  "filter": []
+}
