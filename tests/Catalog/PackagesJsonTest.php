@@ -57,6 +57,7 @@ final class PackagesJsonTest extends TestCase
             $v['dist']['url']
         );
         self::assertSame('zip', $v['dist']['type']);
+        self::assertSame(str_repeat('a', 40), $v['dist']['reference']);
         self::assertSame(str_repeat('a', 40), $v['dist']['shasum']);
         self::assertSame(1, $result->packagesCount);
         self::assertSame(2, $result->versionsCount);

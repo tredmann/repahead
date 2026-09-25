@@ -69,9 +69,12 @@ final readonly class PackagesJson
             }
 
             $cj['version'] = $entry->version;
+            // Composer only updates an installed package whose version is unchanged
+            // (e.g. an overwritten dev-main) when its dist reference differs.
             $cj['dist'] = [
                 'type' => 'zip',
                 'url' => $baseUrl . '/dist/' . $entry->path,
+                'reference' => $meta->sha1,
                 'shasum' => $meta->sha1,
             ];
 
