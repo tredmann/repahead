@@ -22,11 +22,11 @@ A specific versioned artifact: one ZIP file for a particular version of a Packag
 
 ## Dist
 
-The download descriptor object synthesized for each Release entry in the Index. Contains `type` ("zip"), `url` (the `/dist/…` route on this server), and `shasum` (the SHA-1 of the ZIP bytes). Copied verbatim from the Composer protocol. Not present in Storage — this server synthesizes it during every Index build.
+The download descriptor object synthesized for each Release entry in the Index. Contains `type` ("zip"), `url` (the `/dist/…` route on this server), `reference` and `shasum` (both the SHA-1 of the ZIP bytes). Composer compares `reference` to detect a changed Release whose version stays the same, such as an overwritten `dev-main`. Copied verbatim from the Composer protocol. Not present in Storage — this server synthesizes it during every Index build.
 
 ## Shasum
 
-The SHA-1 hash of a Release's ZIP file bytes, stored in the `dist.shasum` field of the Index. Used by Composer to verify download integrity. Computed during Index build by `ZipMetadata`. Distinct from the Listing Fingerprint, which is SHA-256 of Listing metadata and is only used internally for cache invalidation.
+The SHA-1 hash of a Release's ZIP file bytes, stored in the `dist.shasum` and `dist.reference` fields of the Index. Used by Composer to verify download integrity. Computed during Index build by `ZipMetadata`. Distinct from the Listing Fingerprint, which is SHA-256 of Listing metadata and is only used internally for cache invalidation.
 
 ## Publisher
 
