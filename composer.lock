@@ -62,16 +62,16 @@
         },
         {
             "name": "aws/aws-sdk-php",
-            "version": "3.400.0",
+            "version": "3.401.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/aws/aws-sdk-php.git",
-                "reference": "dc874b220df5ec8861fe826b436c19f919d27328"
+                "reference": "4a1b9615de78a69d91614d45966402cc28d4dfe3"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/dc874b220df5ec8861fe826b436c19f919d27328",
-                "reference": "dc874b220df5ec8861fe826b436c19f919d27328",
+                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/4a1b9615de78a69d91614d45966402cc28d4dfe3",
+                "reference": "4a1b9615de78a69d91614d45966402cc28d4dfe3",
                 "shasum": ""
             },
             "require": {
@@ -153,9 +153,9 @@
             "support": {
                 "forum": "https://github.com/aws/aws-sdk-php/discussions",
                 "issues": "https://github.com/aws/aws-sdk-php/issues",
-                "source": "https://github.com/aws/aws-sdk-php/tree/3.400.0"
+                "source": "https://github.com/aws/aws-sdk-php/tree/3.401.0"
             },
-            "time": "2026-10-08T18:13:44+00:00"
+            "time": "2026-10-12T18:06:22+00:00"
         },
         {
             "name": "graham-campbell/result-type",
@@ -2266,12 +2266,12 @@
             "version": "v5.7.0",
             "source": {
                 "type": "git",
-                "url": "https://github.com/vlucas/phpdotenv.git",
+                "url": "https://github.com/phpdotenv/phpdotenv.git",
                 "reference": "301c07936b16d88628b126b01d082ba153cf4c40"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/vlucas/phpdotenv/zipball/301c07936b16d88628b126b01d082ba153cf4c40",
+                "url": "https://api.github.com/repos/phpdotenv/phpdotenv/zipball/301c07936b16d88628b126b01d082ba153cf4c40",
                 "reference": "301c07936b16d88628b126b01d082ba153cf4c40",
                 "shasum": ""
             },
