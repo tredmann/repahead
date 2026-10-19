@@ -8,7 +8,10 @@ use RuntimeException;
 
 final readonly class Cache
 {
-    private string $packagesFile;
+    public const PACKAGES = 'packages.json';
+    public const P2 = 'p2.json';
+
+    private string $dir;
     private string $hashFile;
     private string $lockFile;
 
@@ -20,17 +23,17 @@ final readonly class Cache
         if (!is_writable($dir)) {
             throw new RuntimeException("Cache directory is not writable: $dir");
         }
-        $this->packagesFile = "$dir/packages.json";
+        $this->dir = $dir;
         $this->hashFile = "$dir/manifest.hash";
         $this->lockFile = "$dir/.rebuild.lock";
     }
 
-    public function readIfFresh(): ?string
+    public function readIfFresh(string $name): ?string
     {
         if ($this->ttlSeconds <= 0) {
             return null;
         }
-        if (!is_file($this->packagesFile) || !is_file($this->hashFile)) {
+        if (!is_file("$this->dir/$name") || !is_file($this->hashFile)) {
             return null;
         }
         clearstatcache();
@@ -38,12 +41,12 @@ final readonly class Cache
         if ($age >= $this->ttlSeconds) {
             return null;
         }
-        return file_get_contents($this->packagesFile) ?: null;
+        return file_get_contents("$this->dir/$name") ?: null;
     }
 
-    public function readIfHashMatches(string $hash): ?string
+    public function readIfHashMatches(string $name, string $hash): ?string
     {
-        if (!is_file($this->packagesFile) || !is_file($this->hashFile)) {
+        if (!is_file("$this->dir/$name") || !is_file($this->hashFile)) {
             return null;
         }
         $stored = trim((string) file_get_contents($this->hashFile));
@@ -51,11 +54,14 @@ final readonly class Cache
             return null;
         }
         @touch($this->hashFile);
-        return file_get_contents($this->packagesFile) ?: null;
+        return file_get_contents("$this->dir/$name") ?: null;
     }
 
-    /** @param callable(): string $build */
-    public function rebuild(string $newHash, callable $build): string
+    /**
+     * @param callable(): array<string,string> $build  artifact-name => content
+     * @return array<string,string>
+     */
+    public function rebuild(string $newHash, callable $build): array
     {
         $lock = fopen($this->lockFile, 'cb');
         if ($lock === false) {
@@ -69,16 +75,21 @@ final readonly class Cache
             // Re-check inside the lock — another process may have rebuilt.
             if (is_file($this->hashFile)) {
                 $stored = trim((string) file_get_contents($this->hashFile));
-                if ($stored === $newHash && is_file($this->packagesFile)) {
-                    @touch($this->hashFile);
-                    return (string) file_get_contents($this->packagesFile);
+                if ($stored === $newHash) {
+                    $existing = $this->readAll();
+                    if ($existing !== null) {
+                        @touch($this->hashFile);
+                        return $existing;
+                    }
                 }
             }
 
-            $json = $build();
-            $this->atomicWrite($this->packagesFile, $json);
+            $artifacts = $build();
+            foreach ($artifacts as $name => $content) {
+                $this->atomicWrite("$this->dir/$name", $content);
+            }
             $this->atomicWrite($this->hashFile, $newHash);
-            return $json;
+            return $artifacts;
         } finally {
             flock($lock, LOCK_UN);
             fclose($lock);
@@ -88,6 +99,19 @@ final readonly class Cache
     public function invalidate(): void
     {
         @unlink($this->hashFile);
+    }
+
+    /** @return array<string,string>|null null if any known artifact is missing */
+    private function readAll(): ?array
+    {
+        $out = [];
+        foreach ([self::PACKAGES, self::P2] as $name) {
+            if (!is_file("$this->dir/$name")) {
+                return null;
+            }
+            $out[$name] = (string) file_get_contents("$this->dir/$name");
+        }
+        return $out;
     }
 
     private function atomicWrite(string $target, string $content): void

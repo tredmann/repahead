@@ -59,3 +59,23 @@ The time window during which a fresh Storage listing is skipped and the Cached I
 ## Rebuild
 
 The act of re-deriving the Index from a fresh Listing: opening each Release ZIP, reading its embedded `composer.json`, and synthesizing a Dist block per Release. Triggered either by the Listing Fingerprint changing after a TTL expiry, or by an explicit `POST /rebuild` from a Publisher. Reports Package count, Release count, Rejected-Release count, and wall-clock duration in its response.
+
+## Metadata URL (p2 document)
+
+The Composer v2 lazy-loading API. The root Index advertises
+`metadata-url: <baseUrl>/p2/%package%.json`; a Consumer running Composer 2
+substitutes `%package%` and fetches one **p2 document** per required Package
+from `GET /p2/{vendor}/{package}.json`. A p2 document has the shape
+`{"packages":{"vendor/package":[ …version objects… ]}}` — the versions are a
+**list** (newest first), unlike the v1 inline map keyed by version. Built at
+Rebuild time and stored in the Cache as the single `p2.json` manifest. A
+request for an unknown Package (including any `~dev` probe, since this server
+holds only tagged Releases) returns 404. Composer 1 ignores `metadata-url` and
+reads the inline `packages` map instead.
+
+## Available Packages
+
+The flat, sorted list of every Package name (`available-packages`) included in
+the root Index. Lets a Composer 2 Consumer know exactly which Packages exist so
+it never probes unknown names. Derived from the Listing during each Index
+build.
