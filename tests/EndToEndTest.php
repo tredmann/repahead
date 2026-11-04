@@ -108,6 +108,73 @@ final class EndToEndTest extends TestCase
         self::assertSame(404, $resp->getStatusCode());
     }
 
+    public function testP2Route200(): void
+    {
+        $router = App::router($this->config, $this->fs);
+        $resp = $router->dispatch($this->authedRequest('GET', '/p2/acme/billing.json'));
+        self::assertSame(200, $resp->getStatusCode());
+        $decoded = json_decode((string) $resp->getBody(), true);
+        self::assertSame('1.2.0', $decoded['packages']['acme/billing'][0]['version']);
+    }
+
+    public function testP2RouteRequiresAuth(): void
+    {
+        $router = App::router($this->config, $this->fs);
+        $resp = $router->dispatch(new ServerRequest([], [], '/p2/acme/billing.json'));
+        self::assertSame(401, $resp->getStatusCode());
+    }
+
+    public function testP2RouteDevSuffix404(): void
+    {
+        $router = App::router($this->config, $this->fs);
+        $resp = $router->dispatch($this->authedRequest('GET', '/p2/acme/billing~dev.json'));
+        self::assertSame(404, $resp->getStatusCode());
+    }
+
+    public function testRootAdvertisesMetadataUrl(): void
+    {
+        $router = App::router($this->config, $this->fs);
+        $resp = $router->dispatch($this->authedRequest('GET', '/packages.json'));
+        $decoded = json_decode((string) $resp->getBody(), true);
+        self::assertSame('https://example.com/p2/%package%.json', $decoded['metadata-url']);
+        self::assertSame(['acme/billing'], $decoded['available-packages']);
+    }
+
+    public function testComposer2ResolvesFullChainFromAdvertisedUrls(): void
+    {
+        $router = App::router($this->config, $this->fs);
+
+        // 1. Root Index — the v2 discovery contract.
+        $root = json_decode(
+            (string) $router->dispatch($this->authedRequest('GET', '/packages.json'))->getBody(),
+            true
+        );
+        self::assertStringContainsString('%package%', $root['metadata-url']);
+        self::assertContains('acme/billing', $root['available-packages']);
+
+        // 2. Substitute %package% into the advertised (absolute) metadata-url and follow it.
+        $p2Url = str_replace('%package%', 'acme/billing', $root['metadata-url']);
+        $p2 = json_decode(
+            (string) $router->dispatch($this->authedRequest('GET', (string) parse_url($p2Url, PHP_URL_PATH)))->getBody(),
+            true
+        );
+        $version = $p2['packages']['acme/billing'][0]; // newest-first list
+        self::assertSame('1.2.0', $version['version']);
+
+        // 3. Follow the advertised dist.url; the ZIP must download.
+        $distResp = $router->dispatch(
+            $this->authedRequest('GET', (string) parse_url((string) $version['dist']['url'], PHP_URL_PATH))
+        );
+        self::assertSame(200, $distResp->getStatusCode());
+        self::assertSame('application/zip', $distResp->getHeaderLine('Content-Type'));
+
+        $bytes = (string) $distResp->getBody();
+        self::assertSame("PK\x03\x04", substr($bytes, 0, 4));
+
+        // Contract: the shasum advertised in the p2 doc is the SHA-1 of the downloaded bytes.
+        self::assertSame(sha1($bytes), $version['dist']['shasum']);
+    }
+
     public function testSafeJsonStrategySanitisesUncaughtException(): void
     {
         $router = new \League\Route\Router();

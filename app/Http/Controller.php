@@ -56,6 +56,30 @@ final readonly class Controller
         }
     }
 
+    /** @param array{vendor: string, package: string} $args */
+    public function metadata(ServerRequestInterface $request, array $args): ResponseInterface
+    {
+        try {
+            $p2Json = $this->ensure(Cache::P2);
+        } catch (FilesystemException $e) {
+            $this->logger->error('Storage listing failed', ['error' => $e->getMessage()]);
+            return $this->errorResponse(503, 'storage_unavailable');
+        }
+
+        $name = "{$args['vendor']}/{$args['package']}";
+        /** @var array<string, list<array<string, mixed>>> $manifest */
+        $manifest = json_decode($p2Json, true) ?: [];
+        if (!isset($manifest[$name])) {
+            return (new Response())->withStatus(404);
+        }
+
+        $doc = ['packages' => [$name => $manifest[$name]]];
+        return $this->jsonResponse(
+            200,
+            (string) json_encode($doc, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT)
+        );
+    }
+
     public function home(ServerRequestInterface $request): ResponseInterface
     {
         try {
@@ -72,32 +96,44 @@ final readonly class Controller
     }
 
     /**
-     * Read the Index from cache, or scan Storage and rebuild it. Shared by the
-     * machine-readable packages.json endpoint and the human-facing landing page.
+     * Ensure the Cache is current and return the named artifact
+     * (Cache::PACKAGES or Cache::P2). Shared by packages.json, the landing
+     * page, and the p2 metadata endpoint.
      *
      * @throws FilesystemException when Storage cannot be listed
      */
-    private function indexJson(): string
+    private function ensure(string $name): string
     {
-        $cached = $this->cache->readIfFresh();
+        $cached = $this->cache->readIfFresh($name);
         if ($cached !== null) {
             return $cached;
         }
 
         [$entries, $hash] = $this->catalog->scan($this->fs);
 
-        $cached = $this->cache->readIfHashMatches($hash);
+        $cached = $this->cache->readIfHashMatches($name, $hash);
         if ($cached !== null) {
             return $cached;
         }
 
-        return $this->cache->rebuild($hash, function () use ($entries) {
-            return $this->packagesJson->build(
+        $artifacts = $this->cache->rebuild($hash, function () use ($entries): array {
+            $result = $this->packagesJson->build(
                 $entries,
                 fn (Release $e): ?ZipMeta => $this->zipMetadata->read($this->fs, $e->path),
                 $this->baseUrl,
-            )->json;
+            );
+            return [
+                Cache::PACKAGES => $result->json,
+                Cache::P2 => $result->p2Json,
+            ];
         });
+
+        return $artifacts[$name];
+    }
+
+    private function indexJson(): string
+    {
+        return $this->ensure(Cache::PACKAGES);
     }
 
     /** @param array{vendor: string, package: string, version: string} $args */
@@ -148,13 +184,16 @@ final readonly class Controller
         }
 
         $result = null;
-        $this->cache->rebuild($hash, function () use ($entries, &$result) {
+        $this->cache->rebuild($hash, function () use ($entries, &$result): array {
             $result = $this->packagesJson->build(
                 $entries,
                 fn (Release $e): ?ZipMeta => $this->zipMetadata->read($this->fs, $e->path),
                 $this->baseUrl,
             );
-            return $result->json;
+            return [
+                Cache::PACKAGES => $result->json,
+                Cache::P2 => $result->p2Json,
+            ];
         });
 
         // invalidate() above guarantees Cache::rebuild calls the closure, so $result is set.
